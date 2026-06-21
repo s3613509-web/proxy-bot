@@ -14,9 +14,9 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton,
-    ReplyKeyboardMarkup, KeyboardButton, WebAppInfo,
+    ReplyKeyboardMarkup, KeyboardButton,
     FSInputFile, BufferedInputFile, LabeledPrice,
-    PreCheckoutQuery, Message
+    Message
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import aiohttp
@@ -27,16 +27,11 @@ import openpyxl
 # ============ НАСТРОЙКИ ============
 TOKEN = "8623163395:AAEWna0-DmFKdFvCO8z6NWeRcA-ybnR55Ss"
 ADMIN_IDS = [8504186560]
-CRYPTO_BOT_TOKEN = ""  # Токен от @CryptoBot (если будет)
+CRYPTO_BOT_TOKEN = ""
 USDT_ADDRESS = "ТВОЙ_USDT_TRC20"
 BOT_USERNAME = "FrpPortSaller_bot"
-
-# Настройки своих прокси-серверов (если есть VPS)
-OWN_PROXY_SERVERS = []  # [{"ip": "1.2.3.4", "port": 8080, "login": "admin", "password": "pass", "type": "SOCKS5"}]
-
-# UptimeRobot monitoring endpoint
+OWN_PROXY_SERVERS = []
 HEALTH_CHECK_PORT = int(os.environ.get("PORT", 10000))
-
 # ===================================
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -45,105 +40,58 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# ============ БАЗА ДАННЫХ ============
 conn = sqlite3.connect('shop.db', check_same_thread=False)
 c = conn.cursor()
 
 c.executescript('''
     CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY,
-        username TEXT,
-        balance REAL DEFAULT 0,
-        proxies TEXT,
-        proxy_login TEXT,
-        proxy_password TEXT,
-        proxy_type TEXT,
-        proxy_country TEXT,
-        expiry TEXT,
-        discount INTEGER DEFAULT 0,
-        total_spent REAL DEFAULT 0,
-        registered TEXT,
-        banned INTEGER DEFAULT 0,
-        language TEXT DEFAULT 'ru',
-        auto_renew INTEGER DEFAULT 0,
-        api_key TEXT,
-        ref_code TEXT
+        id INTEGER PRIMARY KEY, username TEXT, balance REAL DEFAULT 0,
+        proxies TEXT, proxy_login TEXT, proxy_password TEXT,
+        proxy_type TEXT, proxy_country TEXT, expiry TEXT,
+        discount INTEGER DEFAULT 0, total_spent REAL DEFAULT 0,
+        registered TEXT, banned INTEGER DEFAULT 0,
+        language TEXT DEFAULT 'ru', auto_renew INTEGER DEFAULT 0,
+        api_key TEXT, ref_code TEXT
     );
-    
     CREATE TABLE IF NOT EXISTS proxies (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ip TEXT,
-        port TEXT,
-        type TEXT,
-        login TEXT,
-        password TEXT,
-        country TEXT,
-        status TEXT,
-        sold INTEGER DEFAULT 0,
-        tier TEXT DEFAULT 'base',
-        speed REAL DEFAULT 0,
-        uptime REAL DEFAULT 100.0,
-        last_check TEXT,
-        added TEXT,
+        ip TEXT, port TEXT, type TEXT, login TEXT, password TEXT,
+        country TEXT, status TEXT, sold INTEGER DEFAULT 0,
+        tier TEXT DEFAULT 'base', speed REAL DEFAULT 0,
+        uptime REAL DEFAULT 100.0, last_check TEXT, added TEXT,
         source TEXT DEFAULT 'public'
     );
-    
     CREATE TABLE IF NOT EXISTS referrals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        referrer_id INTEGER,
-        referred_id INTEGER,
-        level INTEGER DEFAULT 1,
-        amount REAL DEFAULT 20,
-        date TEXT
+        referrer_id INTEGER, referred_id INTEGER,
+        level INTEGER DEFAULT 1, amount REAL DEFAULT 20, date TEXT
     );
-    
     CREATE TABLE IF NOT EXISTS promocodes (
-        code TEXT PRIMARY KEY,
-        discount INTEGER,
-        uses INTEGER,
-        max_uses INTEGER,
-        created_by INTEGER,
-        created TEXT
+        code TEXT PRIMARY KEY, discount INTEGER, uses INTEGER,
+        max_uses INTEGER, created_by INTEGER, created TEXT
     );
-    
     CREATE TABLE IF NOT EXISTS payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        amount REAL,
-        currency TEXT,
-        status TEXT,
-        date TEXT,
-        payload TEXT,
-        payment_method TEXT
+        user_id INTEGER, amount REAL, currency TEXT,
+        status TEXT, date TEXT, payload TEXT, payment_method TEXT
     );
-    
     CREATE TABLE IF NOT EXISTS tickets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        username TEXT,
-        message TEXT,
-        reply TEXT,
-        status TEXT DEFAULT 'open',
-        created TEXT,
-        closed TEXT
+        user_id INTEGER, username TEXT, message TEXT, reply TEXT,
+        status TEXT DEFAULT 'open', created TEXT, closed TEXT
     );
-    
     CREATE TABLE IF NOT EXISTS notification_queue (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        type TEXT,
-        message TEXT,
-        created TEXT,
-        sent INTEGER DEFAULT 0
+        user_id INTEGER, type TEXT, message TEXT,
+        created TEXT, sent INTEGER DEFAULT 0
     );
 ''')
 conn.commit()
 
-# ============ ТОВАРЫ ============
 PROXY_TIERS = {
     "base": {"price": 50, "name": "👤 Базовый", "speed": "до 10 Мбит/с", "anon": "HTTP", "features": ["Сёрфинг", "Смена IP"]},
-    "anon": {"price": 150, "name": "🕵️ Анонимный", "speed": "до 50 Мбит/с", "anon": "HTTP(S)", "features": ["Соцсети", "Парсинг", "Смена IP"]},
-    "elite": {"price": 300, "name": "👑 Elite", "speed": "до 100 Мбит/с", "anon": "SOCKS5", "features": ["Всё включено", "Статический IP", "24/7"]},
+    "anon": {"price": 150, "name": "🕵️ Анонимный", "speed": "до 50 Мбит/с", "anon": "HTTP(S)", "features": ["Соцсети", "Парсинг"]},
+    "elite": {"price": 300, "name": "👑 Elite", "speed": "до 100 Мбит/с", "anon": "SOCKS5", "features": ["Всё включено", "Статический IP"]},
 }
 
 DURATIONS = {
@@ -159,7 +107,6 @@ COUNTRIES = {"auto": "🌍 Авто", "ru": "🇷🇺 Россия", "us": "🇺
 
 FORMATS = {"ip_port": "IP:Port", "ip_port_user_pass": "IP:Port:Login:Pass", "full": "Полный конфиг", "dolphin": "Dolphin Anty", "ads": "AdsPower"}
 
-# ============ СОСТОЯНИЯ ============
 class AdminStates(StatesGroup):
     waiting_mass_text = State()
     waiting_promo_discount = State()
@@ -167,15 +114,11 @@ class AdminStates(StatesGroup):
     waiting_ticket_reply = State()
     waiting_add_balance_user = State()
     waiting_add_balance_amount = State()
-    waiting_ban_user = State()
-    waiting_search_user = State()
 
 class UserStates(StatesGroup):
     waiting_ticket_text = State()
     waiting_promo_input = State()
-    waiting_api_key = State()
 
-# ============ ФУНКЦИИ ПРОКСИ ============
 def generate_proxy_credentials():
     login = 'user_' + ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
     password = ''.join(random.choices(string.ascii_letters + string.digits + "!@#$%^&*", k=16))
@@ -197,13 +140,16 @@ async def fetch_proxies():
                         if cols and len(cols) >= 7:
                             ptype = 'SOCKS5' if 'socks' in url else ('HTTPS' if 'yes' in cols[6].text.lower() else 'HTTP')
                             proxies.append({'ip': cols[0].text.strip(), 'port': cols[1].text.strip(), 'type': ptype, 'country': cols[3].text.strip() if len(cols) > 3 else 'Unknown'})
-            except Exception as e:
-                logger.error(f"Parse error {url}: {e}")
+            except:
+                pass
     return proxies
 
-async def check_proxy_with_auth(ip, port, login, password, proxy_type='HTTP'):
+async def check_proxy_with_auth(ip, port, login="", password="", proxy_type='HTTP'):
     try:
-        proxy_url = f'{proxy_type.lower()}://{login}:{password}@{ip}:{port}'
+        if login and password:
+            proxy_url = f'{proxy_type.lower()}://{login}:{password}@{ip}:{port}'
+        else:
+            proxy_url = f'{proxy_type.lower()}://{ip}:{port}'
         async with aiohttp.ClientSession() as session:
             start = asyncio.get_event_loop().time()
             async with session.get('http://httpbin.org/ip', proxy=proxy_url, timeout=8) as resp:
@@ -219,32 +165,29 @@ async def update_proxy_pool():
     logger.info("Starting proxy pool update...")
     while True:
         try:
-            # Бесплатные прокси
             proxies = await fetch_proxies()
             added = 0
             for p in proxies[:50]:
                 c.execute("SELECT id FROM proxies WHERE ip=? AND port=?", (p['ip'], p['port']))
                 if not c.fetchone():
-                    is_working, speed, _ = await check_proxy_with_auth(p['ip'], p['port'], '', '', p['type'])
+                    is_working, speed, _ = await check_proxy_with_auth(p['ip'], p['port'], proxy_type=p['type'])
                     if is_working:
                         login, password = generate_proxy_credentials()
                         tier = 'elite' if speed < 500 else ('anon' if speed < 1000 else 'base')
                         c.execute("INSERT INTO proxies (ip, port, type, login, password, country, status, tier, speed, uptime, last_check, added, source) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, 100.0, ?, ?, 'public')",
                                   (p['ip'], p['port'], p['type'], login, password, p.get('country', 'Unknown'), tier, speed, datetime.now().isoformat(), datetime.now().isoformat()))
                         added += 1
-            
-            # Свои прокси-сервера
+                        logger.info(f"Added proxy: {p['ip']}:{p['port']} [{p['type']}] Speed: {speed}ms")
             for own in OWN_PROXY_SERVERS:
                 c.execute("SELECT id FROM proxies WHERE ip=? AND port=?", (own['ip'], str(own['port'])))
                 if not c.fetchone():
                     c.execute("INSERT INTO proxies (ip, port, type, login, password, country, status, tier, speed, uptime, last_check, added, source) VALUES (?, ?, ?, ?, ?, ?, 'active', 'elite', 10, 100.0, ?, ?, 'own')",
                               (own['ip'], str(own['port']), own['type'], own['login'], own['password'], 'Own', datetime.now().isoformat(), datetime.now().isoformat()))
                     added += 1
-            
             conn.commit()
-            logger.info(f"Pool update complete. Added: {added}")
+            logger.info(f"Pool update done. Added: {added}")
         except Exception as e:
-            logger.error(f"Pool update error: {e}")
+            logger.error(f"Pool error: {e}")
         await asyncio.sleep(600)
 
 async def monitor_and_notify():
@@ -252,36 +195,30 @@ async def monitor_and_notify():
     while True:
         try:
             now = datetime.now()
-            # Проверка истекающих прокси (за 24 часа)
-            c.execute("SELECT id, proxies, expiry, auto_renew FROM users WHERE proxies IS NOT NULL AND banned=0")
-            for uid, proxy, expiry, auto_renew in c.fetchall():
-                if not expiry:
+            c.execute("SELECT id, proxies, proxy_login, proxy_password, proxy_type, expiry FROM users WHERE proxies IS NOT NULL AND banned=0")
+            for uid, proxy, login, pwd, ptype, expiry in c.fetchall():
+                if not expiry or not proxy:
                     continue
-                exp = datetime.fromisoformat(expiry)
-                hours_left = (exp - now).total_seconds() / 3600
-                
-                if hours_left <= 0:
-                    c.execute("UPDATE users SET proxies=NULL, proxy_login=NULL, proxy_password=NULL, expiry=NULL, auto_renew=0 WHERE id=?", (uid,))
-                    conn.commit()
-                    await send_notification(uid, "expired", "❌ Ваш прокси истёк. Продлите в /start")
-                
-                elif hours_left <= 24 and hours_left > 23:
-                    await send_notification(uid, "expiring", "⚠️ Прокси истекает через 24 часа. Продлите в /start")
-                
-                # Проверка прокси
-                if proxy and hours_left > 0:
-                    ip, port = proxy.split(':')
-                    c.execute("SELECT proxy_login, proxy_password, proxy_type FROM users WHERE id=?", (uid,))
-                    user_data = c.fetchone()
-                    if user_data:
-                        is_working, speed, _ = await check_proxy_with_auth(ip, port, user_data[0], user_data[1], user_data[2] or 'HTTP')
+                try:
+                    exp = datetime.fromisoformat(expiry)
+                    hours_left = (exp - now).total_seconds() / 3600
+                    if hours_left <= 0:
+                        c.execute("UPDATE users SET proxies=NULL, proxy_login=NULL, proxy_password=NULL, expiry=NULL, auto_renew=0 WHERE id=?", (uid,))
+                        conn.commit()
+                        try: await bot.send_message(uid, "❌ Ваш прокси истёк. Продлите в /start")
+                        except: pass
+                    elif 23 < hours_left <= 24:
+                        try: await bot.send_message(uid, "⚠️ Прокси истекает через 24 часа. Продлите в /start")
+                        except: pass
+                    if proxy and hours_left > 0:
+                        ip, port = proxy.split(':')
+                        is_working, speed, _ = await check_proxy_with_auth(ip, port, login or "", pwd or "", ptype or 'HTTP')
                         if not is_working:
                             await replace_user_proxy(uid)
-                            await send_notification(uid, "replaced", "🔄 Ваш прокси заменён на новый. Проверьте /start")
-            
-            # Очистка старых уведомлений
-            c.execute("DELETE FROM notification_queue WHERE sent=1 AND created < ?", ((now - timedelta(days=1)).isoformat(),))
-            conn.commit()
+                            try: await bot.send_message(uid, "🔄 Ваш прокси заменён на новый. Проверьте /start")
+                            except: pass
+                except:
+                    pass
         except Exception as e:
             logger.error(f"Monitor error: {e}")
         await asyncio.sleep(120)
@@ -298,56 +235,29 @@ async def replace_user_proxy(user_id):
         return True
     return False
 
-async def send_notification(user_id, ntype, message):
-    c.execute("INSERT INTO notification_queue (user_id, type, message, created) VALUES (?, ?, ?, ?)",
-              (user_id, ntype, message, datetime.now().isoformat()))
-    conn.commit()
-    try:
-        await bot.send_message(user_id, message)
-        c.execute("UPDATE notification_queue SET sent=1 WHERE user_id=? AND type=? AND sent=0", (user_id, ntype))
-        conn.commit()
-    except:
-        pass
-
 def format_proxy_output(proxy_str, login, password, ptype, country, speed, expiry, fmt="full"):
     ip, port = proxy_str.split(':')
     country_name = COUNTRIES.get(country, country)
-    
-    if fmt == "ip_port":
-        return f"{proxy_str}"
-    elif fmt == "ip_port_user_pass":
-        return f"{proxy_str}:{login}:{password}"
-    elif fmt == "dolphin":
-        return json.dumps({"proxy": {"type": ptype.lower(), "host": ip, "port": port, "login": login, "password": password}})
-    elif fmt == "ads":
-        return f"{ptype.lower()},{ip},{port},{login},{password}"
+    if fmt == "ip_port": return f"{proxy_str}"
+    elif fmt == "ip_port_user_pass": return f"{proxy_str}:{login}:{password}"
+    elif fmt == "dolphin": return json.dumps({"proxy": {"type": ptype.lower(), "host": ip, "port": port, "login": login, "password": password}})
+    elif fmt == "ads": return f"{ptype.lower()},{ip},{port},{login},{password}"
     else:
         speed_str = f"{speed} мс" if isinstance(speed, (int, float)) and speed > 0 else "проверяется..."
-        return (
-            f"🔗 IP:Port: `{proxy_str}`\n"
-            f"👤 Логин: `{login}`\n"
-            f"🔑 Пароль: `{password}`\n"
-            f"📡 Тип: {ptype}\n"
-            f"🌍 Страна: {country_name}\n"
-            f"⚡ Скорость: {speed_str}\n"
-            f"📅 До: {expiry.strftime('%d.%m.%Y %H:%M') if isinstance(expiry, datetime) else expiry}"
-        )
+        exp_str = expiry.strftime('%d.%m.%Y %H:%M') if isinstance(expiry, datetime) else str(expiry)
+        return (f"🔗 IP:Port: `{proxy_str}`\n👤 Логин: `{login}`\n🔑 Пароль: `{password}`\n"
+                f"📡 Тип: {ptype}\n🌍 Страна: {country_name}\n⚡ Скорость: {speed_str}\n📅 До: {exp_str}")
 
 def get_setup_guide(proxy_str, login, password, proxy_type):
     ip, port = proxy_str.split(':')
     if proxy_type == 'SOCKS5':
-        return (f"📖 *Настройка SOCKS5:*\n\n"
-                f"*Firefox:* Настройки → Сеть → Прокси → SOCKS5\n"
-                f"Хост: `{ip}` Порт: `{port}`\n"
-                f"Логин: `{login}` Пароль: `{password}`\n\n"
+        return (f"📖 *Настройка SOCKS5:*\n\n*Firefox:* Настройки → Сеть → Прокси → SOCKS5\n"
+                f"Хост: `{ip}` Порт: `{port}`\nЛогин: `{login}` Пароль: `{password}`\n\n"
                 f"*Telegram:* Настройки → Данные → Прокси → SOCKS5")
     else:
-        return (f"📖 *Настройка {proxy_type}:*\n\n"
-                f"*Браузер:* Настройки → Прокси → {proxy_type}\n"
-                f"Хост: `{ip}` Порт: `{port}`\n"
-                f"Логин: `{login}` Пароль: `{password}`\n\n"
-                f"*Windows:* Параметры → Сеть → Прокси\n"
-                f"Адрес: `{ip}` Порт: `{port}`")
+        return (f"📖 *Настройка {proxy_type}:*\n\n*Браузер:* Настройки → Прокси → {proxy_type}\n"
+                f"Хост: `{ip}` Порт: `{port}`\nЛогин: `{login}` Пароль: `{password}`\n\n"
+                f"*Windows:* Параметры → Сеть → Прокси\nАдрес: `{ip}` Порт: `{port}`")
 
 # ============ КЛАВИАТУРЫ ============
 def main_menu():
@@ -359,7 +269,6 @@ def main_menu():
     builder.row(InlineKeyboardButton(text="👥 Рефералы", callback_data="ref_menu"))
     builder.row(InlineKeyboardButton(text="🎟 Промокод", callback_data="promo_enter"))
     builder.row(InlineKeyboardButton(text="📞 Поддержка", callback_data="support_menu"))
-    builder.row(InlineKeyboardButton(text="🌐 WebApp", web_app=WebAppInfo(url="https://t.me/FrpPortSaller_bot/webapp")))
     return builder.as_markup()
 
 def buy_menu_kb():
@@ -384,21 +293,17 @@ async def start(message: Message, state: FSMContext):
     await state.clear()
     uid = message.from_user.id
     username = message.from_user.username
-    
     c.execute("SELECT id, banned FROM users WHERE id=?", (uid,))
     user = c.fetchone()
-    
     if user and user[1] == 1:
         await message.answer("❌ Вы заблокированы.")
         return
-    
     if not user:
         ref_code = hashlib.md5(str(uid).encode()).hexdigest()[:10]
         api_key = 'api_' + hashlib.md5(str(uid + random.randint(1, 9999)).encode()).hexdigest()[:16]
         c.execute("INSERT INTO users (id, username, balance, registered, ref_code, api_key) VALUES (?, ?, 10, ?, ?, ?)",
                   (uid, username, datetime.now().isoformat(), ref_code, api_key))
         conn.commit()
-        
         args = message.text.split()
         if len(args) > 1 and args[1].startswith("ref_"):
             ref_hash = args[1][4:]
@@ -408,7 +313,6 @@ async def start(message: Message, state: FSMContext):
                 c.execute("INSERT INTO referrals (referrer_id, referred_id, level, amount, date) VALUES (?, ?, 1, 20, ?)",
                           (referrer[0], uid, datetime.now().isoformat()))
                 c.execute("UPDATE users SET balance=balance+20 WHERE id=?", (referrer[0],))
-                # 2 уровень
                 c.execute("SELECT referrer_id FROM referrals WHERE referred_id=? AND level=1", (referrer[0],))
                 l2 = c.fetchone()
                 if l2:
@@ -416,18 +320,15 @@ async def start(message: Message, state: FSMContext):
                               (l2[0], uid, datetime.now().isoformat()))
                     c.execute("UPDATE users SET balance=balance+10 WHERE id=?", (l2[0],))
                 conn.commit()
-    
     await message.answer(
         "🌐 *RING PROXY BOT*\n\n"
         "🚀 Премиум прокси с автозаменой\n"
         "💳 Оплата: Stars, CryptoBot, USDT\n"
         "🔄 Автопродление\n"
-        "👥 2 уровня рефералов\n"
-        "🌐 WebApp интерфейс\n\n"
+        "👥 2 уровня рефералов\n\n"
         "💰 Бонус: 10₽\n🎁 1 день бесплатно\n\n"
         "Форматы: IP:Port, Dolphin, AdsPower",
-        parse_mode="Markdown",
-        reply_markup=main_menu()
+        parse_mode="Markdown", reply_markup=main_menu()
     )
 
 @dp.callback_query(F.data == "main_menu")
@@ -437,11 +338,7 @@ async def back_main(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.callback_query(F.data == "buy_menu")
 async def show_buy_menu(callback: types.CallbackQuery):
-    await callback.message.edit_text(
-        "🔓 *Выберите тариф:*\n\n"
-        "👤 Базовый — сёрфинг\n🕵️ Анонимный — соцсети\n👑 Elite — всё включено\n\n🎁 1 день бесплатно!",
-        parse_mode="Markdown", reply_markup=buy_menu_kb()
-    )
+    await callback.message.edit_text("🔓 *Выберите тариф:*\n\n👤 Базовый — сёрфинг\n🕵️ Анонимный — соцсети\n👑 Elite — всё включено\n\n🎁 1 день бесплатно!", parse_mode="Markdown", reply_markup=buy_menu_kb())
 
 @dp.callback_query(F.data.startswith("tier_"))
 async def show_tier(callback: types.CallbackQuery):
@@ -449,14 +346,9 @@ async def show_tier(callback: types.CallbackQuery):
     tier = PROXY_TIERS[tid]
     builder = InlineKeyboardBuilder()
     for cid, cname in COUNTRIES.items():
-        builder.row(InlineKeyboardButton(text=cname, callback_data=f"country_{tid}_{cid}"))
-    builder.row(InlineKeyboardButton(text="📋 Все сроки", callback_data=f"durations_{tid}_auto"))
+        builder.row(InlineKeyboardButton(text=cname, callback_data=f"durations_{tid}_{cid}"))
     builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data="buy_menu"))
-    
-    await callback.message.edit_text(
-        f"{tier['name']}\n\n⚡ {tier['speed']}\n🔒 {tier['anon']}\n\n🌍 Выберите страну:",
-        parse_mode="Markdown", reply_markup=builder.as_markup()
-    )
+    await callback.message.edit_text(f"{tier['name']}\n\n⚡ {tier['speed']}\n🔒 {tier['anon']}\n\n🌍 Выберите страну:", parse_mode="Markdown", reply_markup=builder.as_markup())
 
 @dp.callback_query(F.data.startswith("durations_"))
 async def show_durations(callback: types.CallbackQuery):
@@ -464,19 +356,13 @@ async def show_durations(callback: types.CallbackQuery):
     builder = InlineKeyboardBuilder()
     for days, info in DURATIONS.items():
         if days == 1:
-            price = 0
             label = f"{info['name']} — БЕСПЛАТНО"
         else:
             price = int(PROXY_TIERS[tid]['price'] * info['mult'])
             label = f"{info['name']} — {price}₽"
         builder.row(InlineKeyboardButton(text=label, callback_data=f"buy_{tid}_{days}_{country}"))
     builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data=f"tier_{tid}"))
-    await callback.message.edit_text(f"{PROXY_TIERS[tid]['name']}\n📅 Срок:", reply_markup=builder.as_markup())
-
-@dp.callback_query(F.data.startswith("country_"))
-async def show_country_durations(callback: types.CallbackQuery):
-    _, tid, country = callback.data.split("_")
-    await show_durations(callback)
+    await callback.message.edit_text(f"{PROXY_TIERS[tid]['name']}\n{COUNTRIES.get(country, 'Авто')}\n📅 Срок:", reply_markup=builder.as_markup())
 
 @dp.callback_query(F.data.startswith("buy_"))
 async def confirm_buy(callback: types.CallbackQuery):
@@ -484,7 +370,6 @@ async def confirm_buy(callback: types.CallbackQuery):
     days = int(days)
     tier = PROXY_TIERS[tid]
     dur = DURATIONS[days]
-    
     if days == 1:
         price = 0
         final = 0
@@ -494,7 +379,6 @@ async def confirm_buy(callback: types.CallbackQuery):
         user = c.fetchone()
         disc = user[0] if user else 0
         final = int(price * (1 - disc/100))
-    
     builder = InlineKeyboardBuilder()
     if final == 0:
         builder.row(InlineKeyboardButton(text="🎁 Активировать бесплатно", callback_data=f"activate_free_{tid}_{country}"))
@@ -502,25 +386,23 @@ async def confirm_buy(callback: types.CallbackQuery):
         builder.row(InlineKeyboardButton(text=f"⭐ Stars ({final}⭐)", callback_data=f"paystars_{tid}_{days}_{country}_{final}"))
         builder.row(InlineKeyboardButton(text="💎 USDT TRC20", callback_data=f"payusdt_{tid}_{days}_{country}_{price}"))
     builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data=f"durations_{tid}_{country}"))
-    
     await callback.message.edit_text(
-        f"🛒 *Заказ*\n\n📦 {tier['name']}\n🌍 {COUNTRIES.get(country, 'Авто')}\n📅 {dur['name']}\n💰 {'Бесплатно' if final == 0 else f'{final}₽'}\n\n"
-        f"После оплаты: IP:Port + Логин:Пароль\n+ инструкция + авто-замена",
+        f"🛒 *Заказ*\n\n📦 {tier['name']}\n🌍 {COUNTRIES.get(country, 'Авто')}\n📅 {dur['name']}\n💰 {'Бесплатно' if final == 0 else f'{final}₽'}",
         parse_mode="Markdown", reply_markup=builder.as_markup()
     )
 
 @dp.callback_query(F.data.startswith("activate_free_"))
 async def activate_free(callback: types.CallbackQuery):
     _, _, tid, country = callback.data.split("_")
-    
     c.execute("SELECT id FROM payments WHERE user_id=? AND payload LIKE '%trial%'", (callback.from_user.id,))
     if c.fetchone():
         await callback.answer("❌ Вы уже использовали пробный период!", show_alert=True)
         return
-    
-    await activate_proxy(callback.from_user.id, tid, 1, country, 0, 'FREE', 'trial')
-    await callback.message.delete()
-    await show_proxy_info(callback.from_user, callback.message)
+    result = await activate_proxy(callback.from_user.id, tid, 1, country, 0, 'FREE', 'trial')
+    if result:
+        await show_proxy_info(callback.from_user.id, callback.message)
+    else:
+        await callback.message.edit_text("❌ Нет доступных прокси. Попробуйте позже.", reply_markup=main_menu())
 
 async def activate_proxy(uid, tid, days, country, amount, currency, payment_type=''):
     c.execute("SELECT * FROM proxies WHERE sold=0 AND status='active' AND tier=? ORDER BY speed ASC LIMIT 1", (tid,))
@@ -528,38 +410,30 @@ async def activate_proxy(uid, tid, days, country, amount, currency, payment_type
     if not proxy:
         c.execute("SELECT * FROM proxies WHERE sold=0 AND status='active' ORDER BY speed ASC LIMIT 1")
         proxy = c.fetchone()
-    
     if proxy:
         proxy_str = f"{proxy[1]}:{proxy[2]}"
         expiry = datetime.now() + timedelta(days=days)
-        
         c.execute("UPDATE proxies SET sold=1 WHERE id=?", (proxy[0],))
         c.execute("UPDATE users SET proxies=?, proxy_login=?, proxy_password=?, proxy_type=?, proxy_country=?, expiry=?, discount=0 WHERE id=?",
                   (proxy_str, proxy[4], proxy[5], proxy[3], country, expiry.isoformat(), uid))
         c.execute("INSERT INTO payments (user_id, amount, currency, status, date, payload, payment_method) VALUES (?, ?, ?, 'success', ?, ?, ?)",
                   (uid, amount, currency, datetime.now().isoformat(), f"{tid}_{days}_{country}_{payment_type}", payment_type or currency))
-        
-        # Реферальные бонусы за покупку
-        c.execute("SELECT referrer_id FROM referrals WHERE referred_id=? AND level=1", (uid,))
-        ref1 = c.fetchone()
-        if ref1 and amount > 0:
-            bonus1 = int(amount * 0.3)
-            c.execute("UPDATE users SET balance=balance+? WHERE id=?", (bonus1, ref1[0]))
-            c.execute("UPDATE referrals SET amount=amount+? WHERE referred_id=?", (bonus1, uid))
-            try:
-                await bot.send_message(ref1[0], f"🎉 Реферал купил прокси! +{bonus1}₽")
-            except:
-                pass
-            c.execute("SELECT referrer_id FROM referrals WHERE referred_id=? AND level=2", (ref1[0],))
-            ref2 = c.fetchone()
-            if ref2 and amount > 0:
-                bonus2 = int(amount * 0.1)
-                c.execute("UPDATE users SET balance=balance+? WHERE id=?", (bonus2, ref2[0]))
-                try:
-                    await bot.send_message(ref2[0], f"🎉 2 уровень реферала! +{bonus2}₽")
-                except:
-                    pass
-        
+        if amount > 0:
+            c.execute("SELECT referrer_id FROM referrals WHERE referred_id=? AND level=1", (uid,))
+            ref1 = c.fetchone()
+            if ref1:
+                bonus1 = int(amount * 0.3)
+                c.execute("UPDATE users SET balance=balance+? WHERE id=?", (bonus1, ref1[0]))
+                c.execute("UPDATE referrals SET amount=amount+? WHERE referred_id=?", (bonus1, uid))
+                try: await bot.send_message(ref1[0], f"🎉 Реферал купил прокси! +{bonus1}₽")
+                except: pass
+                c.execute("SELECT referrer_id FROM referrals WHERE referred_id=? AND level=2", (ref1[0],))
+                ref2 = c.fetchone()
+                if ref2:
+                    bonus2 = int(amount * 0.1)
+                    c.execute("UPDATE users SET balance=balance+? WHERE id=?", (bonus2, ref2[0]))
+                    try: await bot.send_message(ref2[0], f"🎉 2 уровень реферала! +{bonus2}₽")
+                    except: pass
         conn.commit()
         return proxy_str, proxy[4], proxy[5], proxy[3], proxy[7], expiry
     return None
@@ -570,20 +444,18 @@ async def show_proxy_info(user_id, message):
     if not u or not u[0]:
         await message.answer("Нет активных прокси.", reply_markup=main_menu())
         return
-    
     proxy_str, login, pwd, ptype, country, expiry = u
     exp = datetime.fromisoformat(expiry)
-    speed = "проверяется..."
-    
+    c.execute("SELECT speed FROM proxies WHERE ip=? AND port=?", (proxy_str.split(':')[0], proxy_str.split(':')[1]))
+    sp = c.fetchone()
+    speed = sp[0] if sp and sp[0] and sp[0] > 0 else "проверяется..."
     output = format_proxy_output(proxy_str, login, pwd, ptype, country, speed, exp, "full")
     guide = get_setup_guide(proxy_str, login, pwd, ptype)
-    
     builder = InlineKeyboardBuilder()
     for fid, fname in FORMATS.items():
         builder.row(InlineKeyboardButton(text=f"📋 {fname}", callback_data=f"exportfmt_{fid}"))
     builder.row(InlineKeyboardButton(text="🔄 Проверить", callback_data="check_my_proxy"))
     builder.row(InlineKeyboardButton(text="🔙 Меню", callback_data="main_menu"))
-    
     await message.answer(f"✅ *Прокси активирован!*\n\n{output}\n\n{guide}", parse_mode="Markdown", reply_markup=builder.as_markup())
 
 @dp.callback_query(F.data.startswith("exportfmt_"))
@@ -592,7 +464,11 @@ async def export_format(callback: types.CallbackQuery):
     c.execute("SELECT proxies, proxy_login, proxy_password, proxy_type, proxy_country, expiry FROM users WHERE id=?", (callback.from_user.id,))
     u = c.fetchone()
     if u and u[0]:
-        output = format_proxy_output(u[0], u[1], u[2], u[3], u[4], 0, datetime.fromisoformat(u[5]), fmt)
+        exp = datetime.fromisoformat(u[5])
+        c.execute("SELECT speed FROM proxies WHERE ip=? AND port=?", (u[0].split(':')[0], u[0].split(':')[1]))
+        sp = c.fetchone()
+        speed = sp[0] if sp else 0
+        output = format_proxy_output(u[0], u[1], u[2], u[3], u[4], speed, exp, fmt)
         await callback.message.answer(f"```\n{output}\n```", parse_mode="Markdown")
     else:
         await callback.answer("Нет активного прокси", show_alert=True)
@@ -630,17 +506,15 @@ async def check_my_proxy(callback: types.CallbackQuery):
     if not u or not u[0]:
         await callback.answer("❌ Нет активного прокси", show_alert=True)
         return
-    
     await callback.answer("🔄 Проверяю...")
     ip, port = u[0].split(':')
-    is_working, speed, origin = await check_proxy_with_auth(ip, port, u[1], u[2], u[3] or 'HTTP')
-    
+    is_working, speed, origin = await check_proxy_with_auth(ip, port, u[1] or "", u[2] or "", u[3] or 'HTTP')
     if is_working:
         c.execute("UPDATE proxies SET speed=?, last_check=? WHERE ip=? AND port=?", (speed, datetime.now().isoformat(), ip, port))
         conn.commit()
         await callback.message.answer(f"✅ *Прокси работает!*\n⚡ Скорость: {speed} мс\n🌐 IP: `{origin}`", parse_mode="Markdown")
     else:
-        await callback.message.answer("❌ Прокси не отвечает. Заменяю...", parse_mode="Markdown")
+        await callback.message.answer("❌ Прокси не отвечает. Заменяю...")
         if await replace_user_proxy(callback.from_user.id):
             await show_proxy_info(callback.from_user.id, callback.message)
         else:
@@ -664,10 +538,8 @@ async def ref_menu(callback: types.CallbackQuery):
     c.execute("SELECT ref_code FROM users WHERE id=?", (callback.from_user.id,))
     user = c.fetchone()
     ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user[0]}" if user else "Ошибка"
-    
     c.execute("SELECT COUNT(*), COALESCE(SUM(amount),0) FROM referrals WHERE referrer_id=?", (callback.from_user.id,))
     cnt, total = c.fetchone()
-    
     await callback.message.edit_text(
         f"👥 *Рефералы 2 уровня*\n\n🔗 `{ref_link}`\n\n👤 Приглашено: {cnt or 0}\n💰 Заработано: {total or 0}₽\n\n"
         "• 1 уровень: +20₽ + 30% от покупок\n• 2 уровень: +10₽ + 10% от покупок",
@@ -744,7 +616,7 @@ async def force_update(message: Message):
     for p in proxies[:20]:
         c.execute("SELECT id FROM proxies WHERE ip=? AND port=?", (p['ip'], p['port']))
         if not c.fetchone():
-            is_working, speed, _ = await check_proxy_with_auth(p['ip'], p['port'], '', '', p['type'])
+            is_working, speed, _ = await check_proxy_with_auth(p['ip'], p['port'], proxy_type=p['type'])
             if is_working:
                 login, password = generate_proxy_credentials()
                 c.execute("INSERT INTO proxies (ip, port, type, login, password, country, status, tier, speed, uptime, last_check, added, source) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, 100.0, ?, ?, 'public')",
@@ -881,7 +753,7 @@ async def exit_admin(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("Вышли", reply_markup=types.ReplyKeyboardRemove())
 
-# ============ ЗДОРОВЬЕ (UptimeRobot) ============
+# ============ HEALTH CHECK ============
 from aiohttp import web
 
 async def health_check(request):
@@ -894,7 +766,7 @@ async def run_health_server():
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', HEALTH_CHECK_PORT)
     await site.start()
-    logger.info(f"Health check server on port {HEALTH_CHECK_PORT}")
+    logger.info(f"Health check on port {HEALTH_CHECK_PORT}")
 
 # ============ ЗАПУСК ============
 async def main():
